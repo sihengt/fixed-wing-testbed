@@ -14,15 +14,15 @@ cd ros2_ws && colcon build --symlink-install
 ## Fly the waypoint loop
 
 ```bash
-# Terminal 1: PX4 + Gazebo (first run builds PX4)
-sim/gazebo/run.sh
+# Terminal 1: PX4 + Gazebo (first run builds PX4). World: default or baylands (textured park).
+sim/gazebo/run.sh baylands
 
 # Terminal 2: ROS 2 bridge + waypoint node
 source ros2_ws/install/setup.bash
 ros2 launch waypoint_flyer fly.launch.py
 ```
 
-The plane takes off from the runway, then loops a 400 m square at 100 m altitude.
+The plane takes off from the runway, then loops a 300 m square at 60 m altitude (placed over the baylands park).
 Edit `WAYPOINTS` in `ros2_ws/src/waypoint_flyer/waypoint_flyer/waypoint_flyer.py` to change the path.
 
 ## Layout
