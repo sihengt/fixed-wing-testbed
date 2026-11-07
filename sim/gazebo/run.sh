@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 # Build and start PX4 SITL with the Gazebo advanced_plane model. Opens the PX4 shell (pxh>).
-# Set HEADLESS=1 to run without the Gazebo window.
+# Usage: run.sh [world]   (default: default). Set HEADLESS=1 to run without the Gazebo window.
 set -e
+
+export PX4_GZ_WORLD=${1:-default}
+case $PX4_GZ_WORLD in
+  baylands)
+    # Flat, clear 50 m strip facing west (found from the collision mesh). Trees reach ~33 m.
+    # Ground there is z=-0.44 (measured with a dropped box). A model spawned inside the mesh falls through.
+    export PX4_GZ_MODEL_POSE="60.5,7.1,-0.1,0,0,3.14159"
+    export PX4_PARAM_MIS_TAKEOFF_ALT=50
+    ;;
+esac
+
 cd "$(dirname "$0")/../../external/PX4-Autopilot"
 # PX4 makes gz_* targets only for worlds present at configure time, so fetch them first.
 git submodule update --init Tools/simulation/gz

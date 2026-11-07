@@ -13,7 +13,8 @@ from px4_msgs.msg import (
 )
 
 # Local NED waypoints [m] from the EKF origin (the takeoff point). z < 0 is up.
-WAYPOINTS = [(400.0, 0.0, -100.0), (400.0, 400.0, -100.0), (0.0, 400.0, -100.0), (0.0, 0.0, -100.0)]
+# 300 m square at 60 m that stays over the baylands park from its spawn point (see sim/gazebo/run.sh).
+WAYPOINTS = [(200.0, -40.0, -60.0), (200.0, 260.0, -60.0), (-100.0, 260.0, -60.0), (-100.0, -40.0, -60.0)]
 ACCEPT_RADIUS = 60.0  # [m] go to the next waypoint inside this horizontal distance
 PX4_CUSTOM_MAIN_MODE_OFFBOARD = 6.0
 NAN = float('nan')
