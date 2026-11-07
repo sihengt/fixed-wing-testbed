@@ -5,6 +5,9 @@ FROM ros:jazzy-ros-base
 RUN apt-get update && apt-get install -y --no-install-recommends mesa-utils \
  && rm -rf /var/lib/apt/lists/*
 
+COPY install-px4-deps.sh /tmp/
+RUN bash /tmp/install-px4-deps.sh && rm /tmp/install-px4-deps.sh
+
 ARG HOST_HOME=/home/ubuntu
 
 # Same home path as the host, so the mounted Claude Code config (absolute plugin paths) resolves.
