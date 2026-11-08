@@ -124,10 +124,14 @@ class WaypointFlyer(Node):
                 self.get_logger().info('Joined the planned path')
             return [x, y, z], [NAN] * 3, [NAN] * 3
 
+        def distance(i):
+            return math.hypot(self.path[i][0] - self.position.x, self.path[i][1] - self.position.y)
+
         n = len(self.path)
-        ahead = [(self.path_index + k) % n for k in range(SEARCH_SAMPLES)]
-        self.path_index = min(ahead, key=lambda i: math.hypot(
-            self.path[i][0] - self.position.x, self.path[i][1] - self.position.y))
+        self.path_index = min(((self.path_index + k) % n for k in range(SEARCH_SAMPLES)), key=distance)
+        if distance(self.path_index) > ACCEPT_RADIUS:
+            # Far off the path: rejoin at the closest point anywhere on it.
+            self.path_index = min(range(n), key=distance)
         x, y, z, psi = self.path[(self.path_index + self.lookahead) % n]
         # Position + velocity puts PX4 in path following along the line through the point.
         # PX4 uses only the velocity direction. No acceleration: PX4 reads it as a turn radius with
