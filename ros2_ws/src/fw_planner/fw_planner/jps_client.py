@@ -10,15 +10,24 @@ RETRIES = 30
 
 
 class GetPlanClient:
-    """leg(a, b) -> corner points [(x, y), ...] at flight altitude. Sums the service time in plan_seconds."""
+    """leg(a, b) -> corner points [(x, y), ...] at flight altitude.
+
+    plan_seconds sums the service time of the answers used; wait_seconds the rest (waiting for the map).
+    """
 
     def __init__(self, node, altitude, obstacles, service='/plan', frame_id='px4_local_ned'):
         self.node, self.z, self.frame_id = node, -altitude, frame_id
         self.obstacles = obstacles  # raw no-fly circles, to spot a planner that has no map yet
         self.client = node.create_client(GetPlan, service)
-        self.plan_seconds = 0.0
+        self.plan_seconds = self.wait_seconds = 0.0
 
     def leg(self, a, b):
+        entered = time.monotonic()
+        points = self._leg(a, b)
+        self.wait_seconds += time.monotonic() - entered - self.last_seconds
+        return points
+
+    def _leg(self, a, b):
         if not self.client.wait_for_service(timeout_sec=30.0):
             raise RuntimeError(f'{self.client.srv_name} is not available')
         for _ in range(RETRIES):
@@ -31,6 +40,7 @@ class GetPlanClient:
             # The planner treats unknown space as free: a path through a no-fly circle means no map yet.
             if points and self._clear(points):
                 self.plan_seconds += seconds
+                self.last_seconds = seconds
                 return points
             self.node.get_logger().info('jps3d gave no path or one through a no-fly zone (no map yet?), retrying')
             time.sleep(1.0)

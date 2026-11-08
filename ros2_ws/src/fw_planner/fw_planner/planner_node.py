@@ -78,7 +78,7 @@ class Planner(Node):
         jps = GetPlanClient(self, altitude, obstacles) if algorithm.startswith('jps3d') else None
         started = time.monotonic()
         start, segments = planners.plan(algorithm, goal_poses, radius, world, jps and jps.leg, rrt_time)
-        seconds = jps.plan_seconds if jps else time.monotonic() - started
+        seconds = time.monotonic() - started - (jps.wait_seconds if jps else 0.0)  # not the wait for the map
         points = sample(start, segments, step)
         length = sum(length for _, length in segments)
         self.get_logger().info(f'Planned {length:.0f} m tour, {len(points)} points ({algorithm}, {seconds:.2f} s)')

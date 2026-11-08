@@ -96,7 +96,7 @@ def main():
                 results.append({'algorithm': algorithm, 'run': run, 'error': str(error)})
                 print(f'{algorithm} run {run}: FAILED {error}')
                 continue
-            seconds = jps.plan_seconds if jps else time.monotonic() - started
+            seconds = time.monotonic() - started - (jps.wait_seconds if jps else 0.0)  # not the wait for the map
             row = {'algorithm': algorithm, 'run': run, 'plan_ms': 1000 * seconds,
                    'free': world.path_free(start, segments), **metrics(start, segments, goals, radius, obstacles, margin)}
             results.append(row)
