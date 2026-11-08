@@ -5,3 +5,6 @@ ros2_ws/log/
 __pycache__/
 planned_path.json
 flight.png
+cf_ws/build/
+cf_ws/install/
+cf_ws/log/
