@@ -7,6 +7,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -15,9 +16,16 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('config', default_value=os.path.join(planner_share, 'config', 'baylands_demo.yaml')),
         DeclareLaunchArgument('plan_file', default_value='planned_path.json'),
+        # hybrid_astar, rrt_star, jps3d_raw, jps3d_fillet (jps3d_*: start cf_adapters jps3d_world.launch.py too)
+        DeclareLaunchArgument('algorithm', default_value='hybrid_astar'),
+        DeclareLaunchArgument('rrt_time', default_value='1.0', description='[s] RRT* time per leg'),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(flyer_share, 'launch', 'fly.launch.py'))),
         Node(
             package='fw_planner', executable='planner', output='screen',
-            parameters=[LaunchConfiguration('config'), {'plan_file': LaunchConfiguration('plan_file')}],
+            parameters=[LaunchConfiguration('config'), {
+                'plan_file': LaunchConfiguration('plan_file'),
+                'algorithm': LaunchConfiguration('algorithm'),
+                'rrt_time': ParameterValue(LaunchConfiguration('rrt_time'), value_type=float),
+            }],
         ),
     ])

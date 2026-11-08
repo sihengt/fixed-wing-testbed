@@ -1,6 +1,7 @@
 """Plan a closed fixed-wing tour around no-fly zones and publish it as a nav_msgs/Path (PX4 local NED)."""
 import json
 import math
+import time
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -9,8 +10,10 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
+from . import planners
 from .dubins import sample
-from .hybrid_astar import World, plan_tour
+from .jps_client import GetPlanClient
+from .world import World
 
 
 def triples(values):
@@ -31,11 +34,21 @@ class Planner(Node):
         altitude = self.declare_parameter('altitude', 60.0).value
         step = self.declare_parameter('sample_step', 5.0).value
         plan_file = self.declare_parameter('plan_file', '').value
+        # See fw_planner.planners. jps3d_* call a nav_msgs/GetPlan service (cf_adapters jps3d_world.launch.py).
+        algorithm = self.declare_parameter('algorithm', 'hybrid_astar').value
+        rrt_time = self.declare_parameter('rrt_time', 1.0).value  # [s] per leg
 
         goal_poses = [(x, y, math.radians(h)) for x, y, h in triples(goals)]
-        segments = plan_tour(goal_poses, radius, World(obstacles, bounds, margin))
-        points = sample(goal_poses[0], segments, step)
-        self.get_logger().info(f'Planned {sum(length for _, length in segments):.0f} m tour, {len(points)} points')
+        world = World(obstacles, bounds, margin)
+        jps = GetPlanClient(self, altitude, obstacles) if algorithm.startswith('jps3d') else None
+        started = time.monotonic()
+        start, segments = planners.plan(algorithm, goal_poses, radius, world, jps and jps.leg, rrt_time)
+        seconds = jps.plan_seconds if jps else time.monotonic() - started
+        points = sample(start, segments, step)
+        length = sum(length for _, length in segments)
+        self.get_logger().info(f'Planned {length:.0f} m tour, {len(points)} points ({algorithm}, {seconds:.2f} s)')
+        if not world.path_free(start, segments):
+            self.get_logger().warn('The tour leaves the free space (no-fly zone + margin, or bounds)')
 
         path = Path()
         path.header.frame_id = 'px4_local_ned'
@@ -52,8 +65,9 @@ class Planner(Node):
 
         if plan_file:
             with open(plan_file, 'w') as f:
-                json.dump({'path': [p[:2] for p in points], 'obstacles': obstacles,
-                           'bounds': bounds, 'margin': margin}, f)
+                json.dump({'path': [p[:2] for p in points], 'obstacles': obstacles, 'bounds': bounds,
+                           'margin': margin, 'algorithm': algorithm, 'plan_seconds': seconds,
+                           'length': length}, f)
             self.get_logger().info(f'Wrote {plan_file}')
 
 
