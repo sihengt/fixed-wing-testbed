@@ -4,11 +4,12 @@ import math
 import time
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import Path
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from visualization_msgs.msg import Marker, MarkerArray
 
 from . import planners
 from .dubins import sample
@@ -19,6 +20,40 @@ from .world import World
 def triples(values):
     values = values or []
     return [tuple(values[i:i + 3]) for i in range(0, len(values), 3)]
+
+
+def world_markers(header, goals, obstacles, bounds, margin, altitude):
+    """No-fly zones (cylinder up to above the flight altitude, margin ring), bounds and goal arrows, in NED."""
+    markers = MarkerArray()
+
+    def marker(kind, rgba, **fields):
+        m = Marker(header=header, ns='world', id=len(markers.markers), type=kind, **fields)
+        m.color.r, m.color.g, m.color.b, m.color.a = rgba
+        m.pose.orientation.w = 1.0
+        markers.markers.append(m)
+        return m
+
+    def ring(cx, cy, r):
+        return [Point(x=cx + r * math.cos(a), y=cy + r * math.sin(a), z=-altitude)
+                for a in (2 * math.pi * i / 72 for i in range(73))]
+
+    top = altitude + 20.0  # [m] cylinder height above ground
+    for x, y, r in obstacles:
+        m = marker(Marker.CYLINDER, (0.85, 0.2, 0.2, 0.5))
+        m.pose.position.x, m.pose.position.y, m.pose.position.z = x, y, -top / 2
+        m.scale.x, m.scale.y, m.scale.z = 2 * r, 2 * r, top
+        marker(Marker.LINE_STRIP, (0.85, 0.2, 0.2, 0.9), points=ring(x, y, r + margin)).scale.x = 1.0
+    if bounds:
+        x0, x1, y0, y1 = bounds
+        corners = [(x0, y0), (x0, y1), (x1, y1), (x1, y0), (x0, y0)]
+        m = marker(Marker.LINE_STRIP, (0.7, 0.7, 0.7, 0.8), points=[Point(x=x, y=y, z=-altitude) for x, y in corners])
+        m.scale.x = 1.5
+    for x, y, psi in goals:
+        m = marker(Marker.ARROW, (1.0, 1.0, 1.0, 1.0))
+        m.pose.position.x, m.pose.position.y, m.pose.position.z = x, y, -altitude
+        m.pose.orientation.z, m.pose.orientation.w = math.sin(psi / 2), math.cos(psi / 2)  # yaw about NED z
+        m.scale.x, m.scale.y, m.scale.z = 30.0, 6.0, 6.0
+    return markers
 
 
 class Planner(Node):
@@ -62,6 +97,8 @@ class Planner(Node):
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.publisher = self.create_publisher(Path, '/planned_path', qos)
         self.publisher.publish(path)
+        self.marker_publisher = self.create_publisher(MarkerArray, '/planner_markers', qos)
+        self.marker_publisher.publish(world_markers(path.header, goal_poses, obstacles, bounds, margin, altitude))
 
         if plan_file:
             with open(plan_file, 'w') as f:
