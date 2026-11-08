@@ -1,7 +1,12 @@
-"""Take off, then fly a fixed loop of waypoints with PX4 offboard position setpoints (fixed-wing)."""
+"""Take off, then fly with PX4 offboard setpoints (fixed-wing).
+
+Without a planned path: fly a fixed loop of waypoints, straight to each one.
+With a path on /planned_path (closed loop): fly to its start, then follow it with PX4 path following.
+"""
 import math
 
 import rclpy
+from nav_msgs.msg import Path
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from px4_msgs.msg import (
@@ -19,6 +24,10 @@ ACCEPT_RADIUS = 60.0  # [m] go to the next waypoint inside this horizontal dista
 PX4_CUSTOM_MAIN_MODE_OFFBOARD = 6.0
 NAN = float('nan')
 
+# Path following
+LOOKAHEAD = 10.0  # [m] track a point this far past the closest one, to cover control delay
+SEARCH_SAMPLES = 20  # closest-point search window, so progress only moves forward along the loop
+
 
 class WaypointFlyer(Node):
     def __init__(self):
@@ -35,10 +44,15 @@ class WaypointFlyer(Node):
         self.command_pub = self.create_publisher(VehicleCommand, '/fmu/in/vehicle_command', qos)
         self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status_v1', self.on_status, qos)
         self.create_subscription(VehicleLocalPosition, '/fmu/out/vehicle_local_position_v1', self.on_position, qos)
+        path_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(Path, '/planned_path', self.on_path, path_qos)
 
         self.status = None
         self.position = None
         self.wp_index = 0
+        self.path = None  # [(x, y, z, psi)]
+        self.path_index = None  # None until the vehicle joins the path
+        self.lookahead = 1
         # Offboard needs a steady setpoint stream (> 2 Hz), also before the mode switch.
         self.create_timer(0.1, self.publish_setpoint)
         # Mode and arm commands are retried until PX4 accepts them.
@@ -49,6 +63,14 @@ class WaypointFlyer(Node):
 
     def on_position(self, msg):
         self.position = msg
+
+    def on_path(self, msg):
+        self.path = [(p.pose.position.x, p.pose.position.y, p.pose.position.z,
+                      2.0 * math.atan2(p.pose.orientation.z, p.pose.orientation.w)) for p in msg.poses]
+        length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(self.path, self.path[1:]))
+        self.path_index = None
+        self.lookahead = max(1, round(LOOKAHEAD * len(self.path) / max(length, 1.0)))
+        self.get_logger().info(f'Got a planned path with {len(self.path)} points')
 
     def manage_mode(self):
         if self.status is None:
@@ -67,24 +89,50 @@ class WaypointFlyer(Node):
     def publish_setpoint(self):
         if self.position is None:
             return
-        x, y, z = WAYPOINTS[self.wp_index]
-        if self.status is not None and self.status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            if math.hypot(x - self.position.x, y - self.position.y) < ACCEPT_RADIUS:
-                self.wp_index = (self.wp_index + 1) % len(WAYPOINTS)
-                x, y, z = WAYPOINTS[self.wp_index]
-                self.get_logger().info(f'Next waypoint {self.wp_index}: ({x:.0f}, {y:.0f}, {z:.0f})')
+        in_offboard = self.status is not None and self.status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD
+        if self.path is None:
+            position, velocity, acceleration = self.loop_setpoint(in_offboard), [NAN] * 3, [NAN] * 3
+        else:
+            position, velocity, acceleration = self.path_setpoint(in_offboard)
 
         now_us = self.get_clock().now().nanoseconds // 1000
         self.offboard_pub.publish(OffboardControlMode(timestamp=now_us, position=True))
         self.setpoint_pub.publish(TrajectorySetpoint(
             timestamp=now_us,
-            position=[x, y, z],
-            velocity=[NAN] * 3,
-            acceleration=[NAN] * 3,
+            position=position,
+            velocity=velocity,
+            acceleration=acceleration,
             jerk=[NAN] * 3,
             yaw=NAN,
             yawspeed=NAN,
         ))
+
+    def loop_setpoint(self, in_offboard):
+        x, y, z = WAYPOINTS[self.wp_index]
+        if in_offboard and math.hypot(x - self.position.x, y - self.position.y) < ACCEPT_RADIUS:
+            self.wp_index = (self.wp_index + 1) % len(WAYPOINTS)
+            x, y, z = WAYPOINTS[self.wp_index]
+            self.get_logger().info(f'Next waypoint {self.wp_index}: ({x:.0f}, {y:.0f}, {z:.0f})')
+        return [x, y, z]
+
+    def path_setpoint(self, in_offboard):
+        if self.path_index is None:
+            # Fly straight to the path start first.
+            x, y, z, _ = self.path[0]
+            if in_offboard and math.hypot(x - self.position.x, y - self.position.y) < ACCEPT_RADIUS:
+                self.path_index = 0
+                self.get_logger().info('Joined the planned path')
+            return [x, y, z], [NAN] * 3, [NAN] * 3
+
+        n = len(self.path)
+        ahead = [(self.path_index + k) % n for k in range(SEARCH_SAMPLES)]
+        self.path_index = min(ahead, key=lambda i: math.hypot(
+            self.path[i][0] - self.position.x, self.path[i][1] - self.position.y))
+        x, y, z, psi = self.path[(self.path_index + self.lookahead) % n]
+        # Position + velocity puts PX4 in path following along the line through the point.
+        # PX4 uses only the velocity direction. No acceleration: PX4 reads it as a turn radius with
+        # the opposite sign, and a sign-corrected one still tracked worse than none in tests.
+        return [x, y, z], [math.cos(psi), math.sin(psi), 0.0], [NAN] * 3
 
     def send_command(self, command, param1=NAN, param2=NAN):
         # Unused params stay NaN: PX4 reads 0 as a real value (e.g. lat/lon 0 for takeoff).

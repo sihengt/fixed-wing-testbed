@@ -25,6 +25,27 @@ ros2 launch waypoint_flyer fly.launch.py
 The plane takes off from the runway, then loops a 300 m square at 60 m altitude (placed over the baylands park).
 Edit `WAYPOINTS` in `ros2_ws/src/waypoint_flyer/waypoint_flyer/waypoint_flyer.py` to change the path.
 
+## Fly a planned path
+
+`fw_planner` plans a closed tour through goal poses around circular no-fly zones (Hybrid A* with Dubins
+shots), and `waypoint_flyer` follows it with PX4 path following.
+
+```bash
+# Terminal 1
+sim/gazebo/run.sh baylands
+
+# Terminal 2: bridge, planner and follower. Writes the plan to planned_path.json.
+source ros2_ws/install/setup.bash
+ros2 launch fw_planner plan_and_fly.launch.py
+
+# After the flight: plot the flown track against the plan, and print the cross-track error.
+ros2 run fw_planner plot_flight planned_path.json \
+  "$(ls -t external/PX4-Autopilot/build/px4_sitl_default/rootfs/log/*/*.ulg | head -1)" -o flight.png
+```
+
+Goals, no-fly zones, bounds and turn radius are in `ros2_ws/src/fw_planner/config/baylands_demo.yaml`.
+Pass another file with `config:=<path>`.
+
 ## Layout
 
 - `external/` simulator-independent upstream code (PX4)
