@@ -44,10 +44,36 @@ ros2 run fw_planner plot_flight planned_path.json \
 ```
 
 Goals, no-fly zones, bounds and turn radius are in `ros2_ws/src/fw_planner/config/baylands_demo.yaml`.
-Pass another file with `config:=<path>`.
+Pass another file with `config:=<path>` (e.g. `baylands_clutter.yaml`, nine no-fly zones).
+
+Options of `plan_and_fly.launch.py`:
+- `algorithm:=hybrid_astar` (default), `rrt_star` (OMPL), or `jps3d_raw | jps3d_fillet | jps3d_guided`
+  (cf_drone's jps3d, see below).
+- `rviz:=true`: RViz view of the plane, the planned path, the no-fly zones and the flown track.
+
+Compare planners without flying: `ros2 run fw_planner bench_planners <config.yaml> --plot plans.png`.
+
+## Stereo camera on the plane
+
+`sim/gazebo/run.sh baylands advanced_plane_stereo` flies PX4's plane with a stereo pair and a ground-truth
+depth camera (`/stereo/{left,right,depth}/...` in Gazebo). Camera settings: `STEREO_ARGS="--baseline 1.0
+--width 1280 --height 720"` (see `sim/gazebo/make_stereo_model.py`).
+
+## cf_drone modules (optional)
+
+The drone stack is a private clone in `external/cf_drone` (not tracked). Its adapters live in `cf_ws`,
+built on top of it:
+
+```bash
+cd external/cf_drone && colcon build --packages-skip px4_gazebo_sim px4_msgs px4_ros_com
+cd ../../cf_ws && source ../external/cf_drone/install/setup.bash && colcon build --symlink-install
+```
+
+Overlay order: `/opt/ros/jazzy` -> `ros2_ws` -> `external/cf_drone/install` -> `cf_ws/install`.
 
 ## Layout
 
 - `external/` simulator-independent upstream code (PX4)
 - `sim/<simulator>/` everything specific to one simulator
 - `ros2_ws/` ROS 2 packages; they talk only to PX4 and standard ROS 2 topics
+- `cf_ws/` adapters between this testbed and the cf_drone stack (needs `external/cf_drone`)
