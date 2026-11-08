@@ -1,8 +1,8 @@
 """Hybrid A* for a fixed-wing at constant altitude.
 
 Search over forward primitives (left arc, straight, right arc at the minimum turn radius) and try a
-Dubins path to the goal at every expansion. The first collision-free Dubins path ends the search.
-Poses and segments follow fw_planner.dubins (PX4 local NED).
+Dubins path to the goal at every expansion. The first collision-free Dubins path ends the search, then a
+shortcut pass removes the wiggles the primitives leave. Poses and segments follow fw_planner.dubins (PX4 local NED).
 """
 import heapq
 import itertools
@@ -59,7 +59,7 @@ def plan(start, goal, radius, world, heading_bins=16, max_expansions=50000):
 
         shot = shortest_path(pose, goal, radius)
         if world.path_free(pose, shot):
-            return _segments_to(nodes, idx) + shot
+            return shortcut(start, _segments_to(nodes, idx) + shot, radius, world)
 
         for primitive in primitives:
             new = integrate(pose, *primitive)
@@ -67,6 +67,28 @@ def plan(start, goal, radius, world, heading_bins=16, max_expansions=50000):
                 nodes.append((new, idx, primitive))
                 heapq.heappush(open_set, (g + step + cost_to_go(new), next(tie), g + step, len(nodes) - 1))
     raise RuntimeError(f'no path from {start} to {goal} after {len(closed)} expansions')
+
+
+def shortcut(start, segments, radius, world):
+    """Remove wiggles: from each pose, jump to the farthest later pose a free Dubins path reaches.
+
+    A Dubins path is the shortest at this turn radius, so the result is never longer.
+    """
+    poses = [start]
+    for segment in segments:
+        poses.append(integrate(poses[-1], *segment))
+    result, i = [], 0
+    while i < len(segments):
+        for j in range(len(segments), i + 1, -1):
+            shot = shortest_path(poses[i], poses[j], radius)
+            if world.path_free(poses[i], shot):
+                result += shot
+                break
+        else:
+            j = i + 1
+            result.append(segments[i])
+        i = j
+    return result
 
 
 def _segments_to(nodes, idx):

@@ -3,7 +3,7 @@ import math
 import pytest
 
 from fw_planner.dubins import end_pose, sample, shortest_path
-from fw_planner.hybrid_astar import World, plan, plan_tour
+from fw_planner.hybrid_astar import World, plan, plan_tour, shortcut
 
 R = 40.0
 
@@ -53,3 +53,26 @@ def test_tour_is_closed():
 def test_goal_inside_obstacle_raises():
     with pytest.raises(RuntimeError):
         plan((0.0, 0.0, 0.0), (300.0, 0.0, 0.0), R, World([(300.0, 0.0, 30.0)]))
+
+
+def path_length(segments):
+    return sum(length for _, length in segments)
+
+
+def test_shortcut_straightens_a_zigzag():
+    start = (0.0, 0.0, 0.0)
+    zigzag = [(1 / R, 20.0), (-1 / R, 40.0), (1 / R, 20.0), (0.0, 50.0)] * 3
+    segments = shortcut(start, zigzag, R, World())
+    assert_pose_close(end_pose(start, segments), end_pose(start, zigzag))
+    assert path_length(segments) == pytest.approx(path_length(shortest_path(start, end_pose(start, zigzag), R)))
+
+
+def test_shortcut_keeps_clear_of_obstacles():
+    start, goal = (0.0, 0.0, 0.0), (500.0, 0.0, 0.0)
+    obstacles = [(250.0, 0.0, 60.0)]
+    world = World(obstacles, margin=10.0)
+    segments = plan(start, goal, R, world)
+    smooth = shortcut(start, segments, R, world)
+    assert_pose_close(end_pose(start, smooth), goal)
+    assert path_length(smooth) <= path_length(segments) + 1e-6
+    assert min_clearance(start, smooth, obstacles) >= 10.0 - 1.0
