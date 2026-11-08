@@ -17,6 +17,8 @@ done
 # Keep the apt numpy: ROS message bindings are built against it, and pip cannot replace a Debian package.
 python3 -c 'import numpy; print("numpy==" + numpy.__version__)' > "$tmp/constraints.txt"
 PIP_CONSTRAINT="$tmp/constraints.txt" RUNS_IN_DOCKER=true bash "$tmp/ubuntu.sh" --no-nuttx
+# OMPL for fw_planner RRT*: the ROS apt package has no Python bindings, the pip wheel does.
+PIP_CONSTRAINT="$tmp/constraints.txt" pip install --break-system-packages ompl==2.0.1
 
 # Bridge between PX4 (uXRCE-DDS client) and ROS 2.
 git clone --depth 1 -b "$XRCE_AGENT_VERSION" https://github.com/eProsima/Micro-XRCE-DDS-Agent.git "$tmp/agent"

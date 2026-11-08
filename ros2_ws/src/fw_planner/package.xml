@@ -16,6 +16,7 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-matplotlib</exec_depend>
   <!-- plot_flight also needs pyulog, installed by PX4's setup script (pip). -->
+  <!-- rrt_star needs OMPL 2.x Python (pip wheel `ompl`, see .devcontainer/install-px4-deps.sh). -->
 
   <test_depend>python3-pytest</test_depend>
 
