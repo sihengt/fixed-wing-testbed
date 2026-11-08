@@ -12,7 +12,7 @@ from mavros_msgs.msg import PositionTarget, State
 from mavros_msgs.srv import CommandBool, CommandLong, SetMode
 from px4_msgs.msg import TrajectorySetpoint
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 
 MAV_CMD_NAV_TAKEOFF = 22
 # Use position, velocity and acceleration; PX4 picks the yaw itself.
@@ -21,7 +21,8 @@ IGNORE_ACCEL = PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionT
 
 
 def ned_to_enu(v):
-    return v[1], v[0], -v[2]
+    # float(): px4_msgs arrays hold numpy float32, which ROS message fields reject.
+    return float(v[1]), float(v[0]), -float(v[2])
 
 
 class MavrosRelay(Node):
@@ -30,7 +31,10 @@ class MavrosRelay(Node):
         ns = self.declare_parameter('mavros_ns', '/mavros').value
         self.state = None
         self.create_subscription(State, f'{ns}/state', self.on_state, 10)
-        self.create_subscription(TrajectorySetpoint, '/relay/trajectory_setpoint', self.on_setpoint, 10)
+        # waypoint_flyer publishes with PX4's QoS (best effort): a reliable subscription would never match.
+        px4_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                             history=HistoryPolicy.KEEP_LAST, depth=1)
+        self.create_subscription(TrajectorySetpoint, '/relay/trajectory_setpoint', self.on_setpoint, px4_qos)
         self.setpoint_pub = self.create_publisher(PositionTarget, f'{ns}/setpoint_raw/local', qos_profile_sensor_data)
         self.arm = self.create_client(CommandBool, f'{ns}/cmd/arming')
         self.command = self.create_client(CommandLong, f'{ns}/cmd/command')
