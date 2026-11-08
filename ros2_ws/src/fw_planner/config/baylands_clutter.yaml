@@ -1,0 +1,12 @@
+# Same tour and bounds as baylands_demo.yaml, with nine no-fly circles. Some gaps are narrower than a
+# 40 m turn: a grid planner may route through them, a turn-radius-aware planner should go around.
+planner:
+  ros__parameters:
+    goals: [200.0, -40.0, 90.0,  200.0, 260.0, 180.0,  -100.0, 260.0, 270.0,  -100.0, -40.0, 0.0]
+    obstacles: [200.0, 110.0, 35.0,  120.0, 200.0, 30.0,  100.0, 40.0, 25.0,  40.0, 130.0, 35.0,
+                -20.0, 230.0, 25.0,  -40.0, 60.0, 30.0,  140.0, 290.0, 20.0,  -110.0, 130.0, 25.0,
+                50.0, -30.0, 25.0]
+    bounds: [-160.0, 260.0, -100.0, 320.0]
+    turn_radius: 40.0  # 15 m/s at 30 deg bank
+    margin: 15.0
+    altitude: 60.0  # trees reach ~33 m

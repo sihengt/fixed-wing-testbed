@@ -27,6 +27,19 @@ def cross_track_error(track, path):
     return np.array([np.min(np.linalg.norm(dense - p, axis=1)) for p in track])
 
 
+def safety(track, plan):
+    """How close the flown track came to the no-fly circles, and how long it was where it must not be."""
+    obstacles = np.array(plan['obstacles']).reshape(-1, 3)
+    if len(obstacles):
+        clearance = np.min(np.linalg.norm(track[:, None, :] - obstacles[None, :, :2], axis=2) - obstacles[:, 2], axis=1)
+    else:
+        clearance = np.full(len(track), np.inf)
+    x_min, x_max, y_min, y_max = plan['bounds'] or (-np.inf, np.inf, -np.inf, np.inf)
+    outside = (track[:, 0] < x_min) | (track[:, 0] > x_max) | (track[:, 1] < y_min) | (track[:, 1] > y_max)
+    return (f'Safety: min clearance {clearance.min():.1f} m, inside margin {100 * np.mean(clearance < plan["margin"]):.1f} %, '
+            f'inside no-fly circle {100 * np.mean(clearance < 0):.1f} %, outside bounds {100 * np.mean(outside):.1f} %')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('plan', help='plan JSON written by the planner node (plan_file)')
@@ -52,6 +65,7 @@ def main():
     if len(on_path):
         print(f'Cross-track error on path ({len(on_path)} samples): mean {on_path.mean():.1f} m, '
               f'p95 {np.percentile(on_path, 95):.1f} m, max {on_path.max():.1f} m')
+        print(safety(track[joined:], plan))
 
     fig, ax = plt.subplots(figsize=(8, 8))
     # Map view: east to the right, north up.
@@ -68,6 +82,8 @@ def main():
     ax.set_ylabel('north [m]')
     ax.set_aspect('equal')
     ax.legend()
+    if 'algorithm' in plan:
+        ax.set_title(f"{plan['algorithm']}: {plan['length']:.0f} m plan")
     fig.savefig(args.out, dpi=120, bbox_inches='tight')
     print(f'Wrote {args.out}')
 
