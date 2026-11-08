@@ -8,3 +8,4 @@ flight.png
 cf_ws/build/
 cf_ws/install/
 cf_ws/log/
+sim/gazebo/generated/
