@@ -3,7 +3,8 @@ import math
 import pytest
 
 from fw_planner.dubins import end_pose, sample, shortest_path
-from fw_planner.hybrid_astar import World, plan, plan_tour, shortcut
+from fw_planner.hybrid_astar import plan
+from fw_planner.world import World, plan_tour, shortcut
 
 R = 40.0
 
@@ -46,7 +47,8 @@ def test_stays_inside_bounds():
 
 def test_tour_is_closed():
     goals = [(0.0, 0.0, 0.0), (300.0, 300.0, math.pi / 2), (0.0, 300.0, math.pi)]
-    segments = plan_tour(goals, R, World([(150.0, 150.0, 40.0)], margin=10.0))
+    world = World([(150.0, 150.0, 40.0)], margin=10.0)
+    segments = plan_tour(goals, lambda a, b: plan(a, b, R, world))
     assert_pose_close(end_pose(goals[0], segments), goals[0])
 
 
