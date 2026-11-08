@@ -1,0 +1,12 @@
+# Demo mission over the baylands park. PX4 local frame (origin = baylands spawn point, x north, y east) [m].
+planner:
+  ros__parameters:
+    # Corners of a 300 m square, heading along the next side: [x, y, heading_deg, ...]
+    goals: [200.0, -40.0, 90.0,  200.0, 260.0, 180.0,  -100.0, 260.0, 270.0,  -100.0, -40.0, 0.0]
+    # No-fly circles on the north and east sides: [x, y, r, ...]
+    obstacles: [200.0, 110.0, 40.0,  50.0, 260.0, 40.0]
+    # Keep the path over the park mesh: [x_min, x_max, y_min, y_max]
+    bounds: [-160.0, 260.0, -100.0, 320.0]
+    turn_radius: 40.0  # 15 m/s at 30 deg bank
+    margin: 15.0
+    altitude: 60.0  # trees reach ~33 m
