@@ -2,7 +2,8 @@
 FROM ros:jazzy-ros-base
 
 # mesa-utils: glxinfo to check GPU rendering; also pulls in the OpenGL libs the NVIDIA driver plugs into.
-RUN apt-get update && apt-get install -y --no-install-recommends mesa-utils \
+# openssh-client: git over SSH, using the host ssh-agent that VS Code forwards.
+RUN apt-get update && apt-get install -y --no-install-recommends mesa-utils openssh-client \
  && rm -rf /var/lib/apt/lists/*
 
 COPY install-px4-deps.sh /tmp/
