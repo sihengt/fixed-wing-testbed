@@ -12,6 +12,16 @@
   <depend>octomap</depend>
   <depend>octomap_msgs</depend>
   <exec_depend>jps3d</exec_depend>
+  <exec_depend>mavros</exec_depend>
+  <exec_depend>mavros_msgs</exec_depend>
+  <exec_depend>px4_msgs</exec_depend>
+  <exec_depend>waypoint_flyer</exec_depend>
+  <exec_depend>fw_planner</exec_depend>
+  <exec_depend>stereo_disparity</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>attitude_pid</exec_depend>
+  <exec_depend>airstack_msgs</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
