@@ -167,22 +167,34 @@ def plot(plans, goals, cylinders, cfg, out):
     fig, axes = plt.subplots(2, len(plans), figsize=(5 * len(plans), 8), gridspec_kw={'height_ratios': [3, 1]},
                              squeeze=False)
     low, high = cfg['altitudes']
+
+    def color(bottom, height):  # red: go around, orange: low (fly over), blue: raised (fly under)
+        return 'tab:blue' if bottom > low else 'tab:red' if height > high else 'tab:orange'
+
     for col, (name, points) in enumerate(plans.items()):
         top, side = axes[0][col], axes[1][col]
-        for x, y, r, bottom, height in cylinders:
-            tall = height > high
-            top.add_patch(plt.Circle((y, x), r, color='tab:red' if tall else 'tab:orange', alpha=0.35))
-            top.text(y, x, '' if tall else f'{height:.0f} m', ha='center', va='center', fontsize=7)
+        for i, (x, y, r, bottom, height) in enumerate(cylinders):
+            top.add_patch(plt.Circle((y, x), r, color=color(bottom, height), alpha=0.35))
+            label = f'from {bottom:.0f} m' if bottom > low else '' if height > high else f'{height:.0f} m'
+            stacked = sum(c[:2] == (x, y) for c in cylinders[:i])  # e.g. a window: one cylinder above another
+            top.text(y, x - 15 * stacked, label, ha='center', va='center', fontsize=7)
         sc = top.scatter([p[1] for p in points], [p[0] for p in points], c=[p[2] for p in points], s=1, cmap='viridis',
                          vmin=low, vmax=high)
         for gx, gy, gh, gpsi in goals:
             top.arrow(gy, gx, 25 * math.sin(gpsi), 25 * math.cos(gpsi), width=3, color='k')
         top.set_aspect('equal')
         top.set_title(name)
+        # Side view: each obstacle's altitude span where the path passes over/under/through its circle.
+        for x, y, r, bottom, height in cylinders:
+            inside = [math.hypot(p[0] - x, p[1] - y) <= r for p in points]
+            side.fill_between(range(len(points)), bottom, min(height, high + 20), where=inside,
+                              color=color(bottom, height), alpha=0.35, lw=0)
         side.plot([p[2] for p in points], lw=1)
         side.axhspan(low, high, color='gray', alpha=0.1)
+        side.set_ylim(0, high + 20)
         side.set_xlabel('distance along the tour [m]')
         side.set_ylabel('altitude [m]')
     fig.colorbar(sc, ax=axes[0].tolist(), label='altitude [m]', shrink=0.6)
-    fig.suptitle('3D tours: red = taller than the flight band (go around), orange = low (fly over, top altitude shown)')
+    fig.suptitle('3D tours: red = taller than the band (go around), orange = low (fly over, top shown), '
+                 'blue = raised (fly under, bottom shown). Side view: obstacle spans where the path crosses them')
     fig.savefig(out, dpi=100, bbox_inches='tight')

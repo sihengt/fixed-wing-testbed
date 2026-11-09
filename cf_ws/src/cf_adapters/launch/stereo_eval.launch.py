@@ -30,7 +30,8 @@ def nodes(context):
             't_rel': [baseline, 0.0, 0.0], 'depth_min': 0.0, 'depth_max': 1000.0,
         }]),
         Node(package='cf_adapters', executable='stereo_eval.py', output='screen',
-             parameters=[{'out': LaunchConfiguration('out').perform(context)}]),
+             parameters=[{'out': LaunchConfiguration('out').perform(context),
+                          'dump_every': int(LaunchConfiguration('dump_every').perform(context))}]),
     ]
 
 
@@ -38,5 +39,6 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('baseline', default_value='0.12', description='[m] must match the model'),
         DeclareLaunchArgument('out', default_value='stereo_eval', description='output path without extension'),
+        DeclareLaunchArgument('dump_every', default_value='0', description='save every N-th frame raw (0: off)'),
         OpaqueFunction(function=nodes),
     ])

@@ -1,0 +1,19 @@
+# 3D test where altitude decides the route: each side of the square tour has a different obstacle across it.
+# North: low hill (top 55 m) -> fly over at >= 70 m. East: overhang from 90 m up (bridge, power lines) -> fly
+# under at <= 75 m. South: window, solid 0-45 m and 95-300 m -> pass at 60-80 m. West: tall pillar -> around.
+# Bounds leave little room for detours. A 2D planner (all zones infinitely tall) must go around all four.
+# Used by bench_planners3d (and jps3d_world.launch.py dim:=3).
+planner:
+  ros__parameters:
+    # x north, y east [m], altitude [m], heading [deg]
+    goals3d: [200.0, -40.0, 60.0, 90.0,  200.0, 260.0, 80.0, 180.0,  -100.0, 260.0, 60.0, 270.0,  -100.0, -40.0, 70.0, 0.0]
+    # x, y, r, bottom, top [m]
+    obstacles3d: [200.0, 110.0, 45.0, 0.0, 55.0,
+                  50.0, 260.0, 40.0, 90.0, 300.0,
+                  -100.0, 110.0, 50.0, 0.0, 45.0,  -100.0, 110.0, 50.0, 95.0, 300.0,
+                  50.0, -40.0, 30.0, 0.0, 300.0]
+    bounds: [-160.0, 260.0, -100.0, 320.0]
+    altitudes: [40.0, 120.0]  # flight band [m]
+    turn_radius: 40.0
+    max_climb_deg: 8.0
+    margin: 15.0
