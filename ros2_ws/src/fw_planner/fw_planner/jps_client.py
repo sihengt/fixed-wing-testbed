@@ -10,14 +10,15 @@ RETRIES = 30
 
 
 class GetPlanClient:
-    """leg(a, b) -> corner points [(x, y), ...] at flight altitude.
+    """leg(a, b) -> corner points [(x, y), ...] at flight altitude, or [(x, y, h), ...] for 3D poses (x, y, h, psi).
 
     plan_seconds sums the service time of the answers used; wait_seconds the rest (waiting for the map).
     """
 
     def __init__(self, node, altitude, obstacles, service='/plan', frame_id='px4_local_ned'):
         self.node, self.z, self.frame_id = node, -altitude, frame_id
-        self.obstacles = obstacles  # raw no-fly circles, to spot a planner that has no map yet
+        # Raw no-fly zones, to spot a planner that has no map yet: circles (x, y, r) or cylinders (x, y, r, bottom, top).
+        self.obstacles = obstacles
         self.client = node.create_client(GetPlan, service)
         self.plan_seconds = self.wait_seconds = 0.0
 
@@ -36,7 +37,9 @@ class GetPlanClient:
             future = self.client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=30.0)
             seconds = time.monotonic() - started
-            points = [(p.pose.position.x, p.pose.position.y) for p in future.result().plan.poses]
+            poses = future.result().plan.poses
+            points = [(p.pose.position.x, p.pose.position.y) + ((-p.pose.position.z,) if len(a) == 4 else ())
+                      for p in poses]
             # The planner treats unknown space as free: a path through a no-fly circle means no map yet.
             if points and self._clear(points):
                 self.plan_seconds += seconds
@@ -49,14 +52,16 @@ class GetPlanClient:
     def _pose(self, pose):
         msg = PoseStamped()
         msg.header.frame_id = self.frame_id
-        msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = pose[0], pose[1], self.z
+        msg.pose.position.x, msg.pose.position.y = pose[0], pose[1]
+        msg.pose.position.z = -pose[2] if len(pose) == 4 else self.z  # NED
         return msg
 
     def _clear(self, points):
-        for (x0, y0), (x1, y1) in zip(points, points[1:]):
-            steps = max(1, int(math.hypot(x1 - x0, y1 - y0)))
+        for a, b in zip(points, points[1:]):
+            steps = max(1, int(math.dist(a, b)))
             for i in range(steps + 1):
-                x, y = x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps
-                if any(math.hypot(x - ox, y - oy) < r for ox, oy, r in self.obstacles):
+                p = [u + (v - u) * i / steps for u, v in zip(a, b)]
+                if any(math.hypot(p[0] - o[0], p[1] - o[1]) < o[2] and (len(p) == 2 or len(o) == 3 or o[3] <= p[2] <= o[4])
+                       for o in self.obstacles):
                     return False
         return True

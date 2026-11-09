@@ -1,0 +1,16 @@
+# 3D test over the baylands park: no-fly cylinders with a bottom and a top altitude (above takeoff), goals at
+# different altitudes. Low ones (top 45-55 m) can be flown over within the altitude band, tall ones cannot.
+# Used by bench_planners3d (and jps3d_world.launch.py dim:=3).
+planner:
+  ros__parameters:
+    # x north, y east [m], altitude [m], heading [deg]
+    goals3d: [200.0, -40.0, 60.0, 90.0,  200.0, 260.0, 80.0, 180.0,  -100.0, 260.0, 50.0, 270.0,  -100.0, -40.0, 70.0, 0.0]
+    # x, y, r, bottom, top [m]
+    obstacles3d: [200.0, 110.0, 40.0, 0.0, 300.0,  120.0, 200.0, 30.0, 0.0, 45.0,  100.0, 40.0, 25.0, 0.0, 55.0,
+                  40.0, 130.0, 35.0, 0.0, 300.0,  -20.0, 230.0, 25.0, 0.0, 50.0,  -40.0, 60.0, 30.0, 0.0, 300.0,
+                  140.0, 290.0, 20.0, 0.0, 300.0,  -110.0, 130.0, 25.0, 0.0, 45.0,  50.0, -30.0, 25.0, 0.0, 50.0]
+    bounds: [-160.0, 260.0, -100.0, 320.0]
+    altitudes: [40.0, 120.0]  # flight band [m]
+    turn_radius: 40.0
+    max_climb_deg: 8.0
+    margin: 15.0

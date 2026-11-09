@@ -21,6 +21,7 @@ setup(
             'planner = fw_planner.planner_node:main',
             'plot_flight = fw_planner.plot_flight:main',
             'bench_planners = fw_planner.bench_planners:main',
+            'bench_planners3d = fw_planner.bench_planners3d:main',
         ],
     },
 )
