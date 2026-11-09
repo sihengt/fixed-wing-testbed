@@ -13,6 +13,7 @@ ament_target_dependencies(world_octomap rclcpp octomap_msgs)
 
 install(TARGETS world_octomap DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
-install(PROGRAMS scripts/mavros_relay.py scripts/stereo_eval.py scripts/tracking_point.py DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/mavros_relay.py scripts/stereo_eval.py scripts/tracking_point.py scripts/droan_bridge.py DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

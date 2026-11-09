@@ -1,0 +1,22 @@
+# DROAN (cf_drone droan_gl) at plane scale. Changed from droan_condo.yaml:
+# - fixed_wing: constant-speed, turn-rate-limited library (shaders/trajectory_fixed_wing.cs, local patch)
+# - sizes x ~20-50: obstacle expansion 0.5 -> 10 m (plane margin), seen radius, keyframe spacing, plan window
+# - use_sim_time false: this sim has no /clock bridge
+/**:
+  ros__parameters:
+    use_sim_time: false
+    graph_nodes: 20
+    expansion_radius: 10.0
+    seen_radius: 20.0
+    dt: 0.1
+    ht: 4.0
+    graph_distance_threshold: 5.0
+    fixed_wing: true
+    turn_radius: 40.0
+    max_climb: 10.0
+    turn_steps: 13
+    climb_steps: 3
+    cruise_speed: 15.0
+    goal_decel_distance: 50.0
+    goal_radius: 30.0
+    path_match_window: 100.0

@@ -1,0 +1,358 @@
+# SUPER at plane scale, made from cf_drone's super_pxvision.yaml by sed (see agent/experiments.md). Changed:
+# MAVROS topics without namespace; 15 m/s; horizon 60 m; 180 m map at 1 m cells; robot 2 m; depth rays to 150 m;
+# click height and map origin 60 m (indoor 1.5 m made SUPER hold the plane at 1.5 m); ESDF off.
+fsm:
+  click_goal_en: true
+  click_goal_topic: "/goal_pose"
+  click_height: 60.0
+  click_yaw_en: true
+  replan_rate: 15.0
+  state_rate: 10.0
+  cmd_topic: "/planning/pos_cmd"
+  mpc_cmd_topic: "/planning_cmd/poly_traj"
+  timer_en: true
+  kx: [5.7, 5.7, 4.2] # PID gains for position, must have 3 values # TODO: tune for px4vision
+  kv: [3.4, 3.4, 4.0] # PID gains for velocity, must have 3 values # TODO: tune for px4vision
+  mav_pos_cmd_pub_en: true # publish position target
+  mav_att_cmd_pub_en: false # publish attitude target command
+  # Send the trajectory acceleration to PX4 as feedforward. false = position +
+  # velocity only (original). experiments/run_demo.sh overrides this per run
+  # with ACC_FF=true|false.
+  mav_acc_ff_en: true
+  # Drag feedforward k/m [1/s], added to the x/y acceleration above (needs
+  # mav_acc_ff_en). 0 = off. Measured sim airframe: k 2.04-2.16 N s/m,
+  # m 1.52 kg -> 1.38 (experiments/tools/fit_drag.py). run_demo.sh overrides
+  # this per run with DRAG_FF=<k/m>.
+  # NEEDS TO BE ON OR THE DRONE WILL CRASH.
+  mav_drag_ff_k_over_m: 1.38
+  # Hold (any state but FOLLOW_TRAJ) at the last trajectory setpoint instead of the measured position
+  # (z clamped to hold_pos_height). false = old behaviour. OPEN_ISSUES A6.
+  hold_at_last_cmd: true
+  mav_pos_cmd_topic: "/mavros/setpoint_raw/local"
+  mav_att_cmd_topic: "/mavros/setpoint_raw/attitude"
+  planner_result_topic: "/planner_result"
+  machine_state_topic: "/planner_state"
+  exec_action_topic: "/enable_navigation" # bool topic to enable drone to move
+
+super_planner:
+  backup_traj_en: true
+  detailed_log_en: false
+  # Log "[BACKUP_CELLS]" (map cell states under each backup) and "[EXEC_MODE]"
+  # (flying exp or backup) lines. Diagnostic.
+  backup_cell_log_en: false
+  # true = backup trajectory only in OBSERVED free space (visibility ray: unknown blocks;
+  # backup corridor: frontier cells are obstacles). Upstream assumes a LiDAR. D58.
+  backup_known_free: true
+  # With backup_known_free: frontier cells within this [m] of the robot do not block the backup corridor (the drone's
+  # own unobserved surroundings; at the spawn they squeezed it below cutPolyByFov's 0.1 m, OPEN_ISSUES B13). 0 = off.
+  backup_corridor_unk_ignore_r: 5.0
+  # PlanFromRest: refuse (keep hovering) when the start point would move more than this [m] from the drone
+  # (it searches up to 3 m for a cell >= robot_r from obstacles; E71 B1 started 0.85 m below the drone). <= 0: off.
+  rest_start_max_shift: 0.3
+  # A corridor that starts inside the inflated map gets an obstacle-free box as its first polytope (B19). true: add a
+  # plane so that box cannot approach the nearest occupied cell. false = old behaviour.
+  empty_poly_away_plane: true
+  # Final-waypoint approach (B16). Clamp the goal z into [corridor_z_min, corridor_z_max]; seed the appended goal with
+  # the rest-to-rest time 2 sqrt(d / max_acc) instead of d / max_vel. false = old behaviour.
+  goal_clamp_to_band: true
+  goal_append_rest_time: true
+  # Cut the first exploratory polytope with the camera frustum along the body heading (the drone only starts moving
+  # where it can see). Kept only if the cut polytope is still usable. false = old behaviour (B8).
+  exp_first_poly_fov_cut: false
+  # Unknown cells within this [m] of the robot do not block the backup visibility ray. < 0: 2 robot_r + res.
+  backup_unk_ignore_r: -1.0
+  visualization_en: true
+  use_fov_cut: true
+  print_log: false
+  visual_process: false
+  frontend_in_known_free: false
+  goal_yaw_en: true
+  goal_vel_en: false
+  corridor_bound_dis: 1.0
+  # Desired clearance of the safe corridors from occupied cells [m]. CIRI keeps this where
+  # the guide path allows and falls back towards robot_r in narrow places (doors).
+  # <= robot_r = old behaviour. The airframe is 0.235 m half-width, 0.33 m half-diagonal.
+  corridor_clearance: 0.35
+  # Reserve between the seed and adaptive obstacle radius; default retains clearance v2.
+  corridor_clearance_seed_margin: 0.05
+  # Altitude band [m] for the drone centre in all corridors (max <= min: off). D60.
+  corridor_z_min: 1.0
+  corridor_z_max: 2.0
+  corridor_line_max_length: 1.2
+  safe_corridor_line_max_length: 5.0
+  iris_iter_num: 2
+  obs_skip_num: 2
+  replan_forward_dt: 0.3
+  # > replan_forward_dt: adapt the forward time per replan between replan_forward_dt and this,
+  # from measured replan durations (experiments DECISIONS D44). <= replan_forward_dt = off.
+  replan_forward_dt_max: 0.0
+  # rog_map asserts planning_horizon <= 0.7 * (map_size/2 - map_sliding/threshold)
+  # on EVERY axis, and warns at startup otherwise. The old pair (7.0 with
+  # map_size z = 6) violated it on z by a factor of ~4, which is the documented
+  # cause of "[EXPTrajOpt] Ill corridor! Forced return." With map_size 20^3 the
+  # limit is 0.7*(10-0.3) = 6.79 m, so 6.0 is inside it on all three axes.
+  planning_horizon: 60.0
+  sensing_horizon: -1
+  receding_dis: 4.0
+  robot_r: 2.0
+  yaw_dot_max: 3.0
+  # Heading points at the trajectory this many seconds ahead [s]. Upstream
+  # hard-coded 0.5. Longer turns the camera into a turn earlier.
+  yaw_lookahead_t: 0.2
+  # Acceleration feedforward taken this many seconds ahead on the trajectory (attitude-loop delay
+  # compensation, experiments E56). 0 = off.
+  acc_ff_lead_t: 0.15
+  # With acc_ff_lead_t > 0, also lead the velocity of the drag feedforward (fsm/mav_drag_ff_k_over_m * v), so the
+  # whole acceleration command is led. false = acceleration only (E57-E60). OPEN_ISSUES A2.
+  acc_ff_lead_drag: true
+  # 0: SUPER's A*, 1: jps3d-backed frontend (path_search::JpsFrontend).
+  # Set to 1 for the Gazebo experiment campaign: the frontend under test is
+  # jps3d's own A* (use_jps=false) at eps 1.5 with fast mode OFF, so neither
+  # SUPER's in-tree A* nor jps3d's JPS is in the loop.
+  # Prior offline baseline, for contrast: over 10 missions on this waypoint
+  # route, jps3d JPS *with* fast mode gave a 19.3% replan-failure rate vs
+  # SUPER A*'s 2.3%, and a worst-case replan of 1232 ms vs 68 ms (budget is
+  # replan_forward_dt = 100 ms). Fast mode off removes a 4.7-6.5x speedup on
+  # top of that, so expect this arm to miss the budget often. That is the
+  # measurement, not a regression.
+  frontend_type: 1
+  jps:
+    # Only consulted when use_inflation_map is false.
+    thresh_dist: 0.3
+    # Which map decides free/occupied for the JPS frontend.
+    # true  -> inflation map: the same predicate A* searches and the
+    #          corridor generator certifies with (isOccupiedInflate),
+    #          so a guide path is free exactly when its consumer agrees.
+    # false -> raw ESDF at thresh_dist. Its free set is wider by
+    #          (inflation_step*inflation_resolution - thresh_dist)
+    #          = 0.40 - 0.30 = 0.10 m, so guide paths land in an
+    #          annulus the corridor stage then rejects. Kept so the
+    #          two can be compared.
+    use_inflation_map: true
+    # A* step into an unknown cell costs (1 + unknown_cost) x its length, so the
+    # search prefers known-free routes. 0 = off (unknown counts as free).
+    unknown_cost: 0.0
+    # true: A* only searches the ESDF update box (esdf/local_update_box, +-5 m), even
+    # with use_inflation_map. false: the whole local map. See experiments DECISIONS D15/D16.
+    esdf_bbox_bound: false
+    # Lower the A* ceiling by this [m]. The corridor stage shrinks its seed box by robot_r
+    # below the (already inflated) effective ceiling, so guide paths in that top band
+    # fail CIRI every replan (experiments DECISIONS D18). robot_r + 0.1 avoids it. 0 = off.
+    ceil_margin: 5.0
+    # Raise the A* floor by this [m] above the effective ground (-0.25 m with the usual
+    # settings), so guide paths do not dive under the unseen floor and the corridor seed box
+    # floor (experiments DECISIONS D36/D40). 0 = off.
+    ground_margin: 1.25
+    # Size-limited hole fill [m]: an UNKNOWN cell with (inflated) occupied cells within this distance on
+    # both sides along x or along y is blocked for A* (unseen door panels, wall patches; DECISIONS D48).
+    # Observed-free cells are never blocked. 0 = off.
+    hole_fill: 0
+    # Hole fill only within this radius [m] of the search start (far unknown = unexplored, not a hole).
+    hole_fill_radius: 4.0
+    # true = a search start inside the inflated map snaps to the nearest known-free cell (else status 1
+    # "start blocked" on every search while the drone hovers next to the wall). D70.
+    start_snap: false
+    # > 0: unknown cells within this [m] of the search start (beyond robot_r + resolution) are blocked
+    # for the frontend - no planning through unseen space next to the drone (D74). 0 = off.
+    near_unknown_block: 0.0
+    # Heuristic weight of the search. >1 = weighted A* (eps-suboptimal, faster in clutter).
+    eps: 1.5
+    # true: Jump Point Search instead of A* (same eps). See experiments DECISIONS D39.
+    use_jps: false
+  # FOV model for use_fov_cut. Matches the px4vision ZED X
+  # (horizontal_fov 1.8326 rad, 640x360 -> 105 deg H x 72.4 deg V).
+  fov_type: 1
+  cone_half_horizontal_fov: 52.5
+  cone_half_vertical_fov: 36.2
+  # Yaw mode: 1 heading to velocity, 2 heading to goal
+  yaw_mode: 1
+  mpc_horizon: 15
+  near_goal_dist: 0.1 # distance from goal to be considered reached
+
+
+traj_opt:
+  switch:
+    save_log_en: false
+    print_optimizer_log: false
+
+  boundary:
+    # 5.0 made the sharp reversals in the waypoint route dynamically infeasible:
+    # the mission advances the goal at switch_dis = 3 m while the drone is still
+    # at full speed, and the ~150 deg turn at wp1 then violates max_omg/thrust,
+    # so the exp-traj optimiser fails outright. Dropping to 2.0 took the measured
+    # replan-failure rate from 6.9% to 2.3% and removed all backup-traj usage.
+    max_vel: 15.0
+    max_acc: 5.0
+    max_jerk: 120.0
+    max_omg: 2.5
+    max_acc_thr: 20.0
+    min_acc_thr: 6.0
+    penna_margin: 0.05
+
+  exp_traj:
+    # 1 for xi 2 for pos
+    pos_constraint_type: 1
+    energy_cost_type: 4
+    block_energy_cost: false
+    opt_accuracy: 5.0e-6
+    scale_factor: 1.0
+    integral_reso: 15
+    smooth_eps: 0.01
+    penna_t: 12000.0
+    penna_pos: 5.0e+6
+    penna_vel: 5.0e+5
+    penna_acc: 5.0e+5
+    penna_jerk: -5.0e+5
+    penna_attract: 1.0e+3
+    penna_omg:  5.0e+5
+    penna_thr: 1.0e+5
+    # Reject the trajectory if a sampled point is more than this [m] outside its corridor. Upstream hard-coded 0.2.
+    # < 0 = no check. OPEN_ISSUES B3.
+    max_pos_viola: 0.05
+
+  backup_traj:
+    uniform_time_en: true
+    pos_constraint_type: 1
+    piece_num: 2
+    energy_cost_type: 4
+    block_energy_cost: true
+    opt_accuracy: 1.0e-6
+    scale_factor: 1.0
+    integral_reso: 12
+    smooth_eps: 0.01
+    penna_t: 1200.0
+    penna_ts: 1.0e+5
+    penna_pos: 1.0e+6
+    penna_vel: 1.0e+5
+    penna_acc: 1.0e+5
+    penna_jerk: -1.0e+5
+    penna_omg: 1.0e+5
+    penna_thr: 1.0e+5
+    # Same for the backup trajectory. Upstream never recorded the backup's violation, so it was never checked: -1 keeps
+    # that. OPEN_ISSUES B2.
+    max_pos_viola: -1.0
+
+  flatness:
+    mass: 1.64 # TODO: set to px4vision mass
+    dh: 0.35
+    dv: 0.35
+    cp: 0.001
+    v_eps: 0.0001
+    grav: 9.81
+
+
+astar:
+  # Sized to match rog_map/map_size at rog_map/resolution (20 m / 0.1 m = 200).
+  # The old [500,500,100] allocated 25M search nodes for a map that no longer
+  # spans that volume.
+  map_voxel_num: [ 180, 180, 180 ]
+  visual_process: false
+  allow_diag: true
+  # 0 DIAG; 1 MANHATTAN; 2 EUCLIDEAN
+  heu_type: 2
+  debug_visualization_en: false
+
+
+rog_map:
+  resolution: 1.0
+  inflation_resolution: 1.0
+  inflation_step: 3
+  unk_inflation_en: false
+  unk_inflation_step: 1
+  # Planning horizon is isotropic.
+  map_size: [ 180,180,180 ]
+  # If the map rolling is disable, the map origin [m] should be set.
+  fix_map_origin: [ 0,0,60.0 ]
+  frontier_extraction_en: false
+
+  # Virtual ceil and ground.
+  #
+  # These are NOT used as written: config.hpp resetMapSize() re-quantizes both
+  # by inflation_step (3) * inflation_resolution (0.1), pulling the usable band
+  # inward, and prints the result at startup. With ORIGIN_AT_CORNER (values below as configured, 2026-10-15):
+  #   ground: floor(-0.6/0.1) + 3 = -3   -> -3*0.1 + 0.05 = -0.25 m
+  #   ceil:   floor(3.05/0.1) - 3 = 27   -> 27*0.1 - 0.05 =  2.65 m
+  # i.e. a configured [-0.1, 4.5] became an effective [0.30, 3.90].
+  #
+  # That 0.30 m floor deadlocked startup: the drone spawns at z=0.05, so
+  # updateMap() hit the "Odom below virtual ground" guard and dropped EVERY
+  # cloud (~26 Hz), the map stayed empty, and super could not plan the climb
+  # that would have lifted it into the valid band. -0.5 quantizes to an
+  # effective -0.1, so the map builds while the drone is still on the ground.
+  #   ground: floor(-0.5/0.2) + 2 = -1   -> -1*0.2 + 0.1 = -0.10 m
+  # Route altitudes are 1.1-2.3 m, well inside the resulting band.
+  virtual_ceil_height: 150.0 # TODO: size to the test site
+  virtual_ground_height: 10.0
+
+  load_pcd_en: false
+
+  map_sliding:
+    enable: true
+    # The minimum distance [m] to slide the map.
+    threshold: 0.3
+
+  esdf:
+    # Needed for the clearance-aware start-point search in PlanFromRest
+    # (getNearestCellNotAndAwayFrom), and mandatory if frontend_type is ever
+    # set to 1/JPS.
+    enable: false  # plane: unseen space around a flying start made PlanFromRest fail
+    resolution: 1.0
+    # The range of esdf around the odom [m].
+    local_update_box: [ 100,100,50 ]
+
+  # If [enable = true], the ROG-Map will actively take ros topic as input.
+  #  else user should call function [updateMap] to update the map.
+  ros_callback:
+    enable: true
+    # Raw stereo_disparity cloud -- rog_map builds its own robocentric grid
+    # directly, so this bypasses octomap_server (unlike jps3d/droan).
+    cloud_topic: "/points"
+    odom_topic: "/mavros/local_position/odom"
+    odom_timeout: 2.0
+
+
+  visualization:
+    enable: true
+    # when enabled, use rqt_reconfigure to change the visualization parameters.
+    use_dynamic_reconfigure: false
+    # The rate of visualization [Hz], if set to 0, the visualization will not be triggered by frame.
+    time_rate: 2
+    # The frame rate of visualization [Hz], if set to 0, the visualization will not be triggered by frame.
+    frame_rate: 0
+    # visualization range along the odom [m].
+    range: [ 15, 15,4 ]
+    frame_id: "world"
+    pub_unknown_map_en: true
+
+  # Intensity filter for input point cloud. If the point intensity is less than this value,
+  # it will be ignored (to avoid noise like dusk).
+  intensity_thresh: -10
+  # The temporal downsample rate for input point cloud.
+  #  e.g. if set to k, the point cloud will be downsampled to 1/k.
+  point_filt_num: 1
+
+  # Probabilistc update
+  raycasting:
+    # if disable, the map will only maintain occupied information, and all other grid
+    # will be considered as unknown.
+    # Must be on: with it off nothing is ever KNOWN_FREE, so the ESDF is empty,
+    # the clearance-aware start search finds nothing, and JPS degenerates to
+    # 0.5 m stub paths. local_update_box also has to fit inside map_size --
+    # [100,100,5] was larger than the map in x/y and flatter in z.
+    enable: true
+    batch_update_size: 1
+    local_update_box: [ 100,100,100 ]
+    # The range of raycasting [m]. Matches stereo_disparity depth_max (20 m).
+    ray_range: [0.5,150]
+
+    p_min: 0.12
+    p_miss: 0.49
+    # Max misses per cell per update batch (0 = unlimited). Many rays crossing one cell in one frame
+    # (grazing angles) otherwise clear unseen wall cells to known-free at once (D75).
+    miss_cap: 0
+    p_free: 0.499
+    p_occ: 0.85
+    p_hit: 0.9
+    p_max: 0.98
+    # The threshold of a non-occupied inf map grid to be considered as free. [0.0-1.0]
+    unk_thresh: 1.0

@@ -15,7 +15,6 @@ from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker
 
 NED_FRAME = 'px4_local_ned'
-BODY_FRAME = 'base_link'  # FLU, like the Gazebo model
 TRACK_STEP = 2.0  # [m] add a track point after moving this far
 TRACK_POINTS = 5000  # keep the last points only
 
@@ -41,6 +40,8 @@ class Viz(Node):
         super().__init__('fw_viz')
         self.mesh = self.declare_parameter('plane_mesh', '').value  # file:// URI; empty = arrow
         self.scale = self.declare_parameter('plane_scale', 30.0).value  # true size is invisible at 500 m
+        # Plane body frame (FLU, like the Gazebo model). Rename it when MAVROS also publishes base_link.
+        self.body_frame = self.declare_parameter('body_frame', 'base_link').value
 
         qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                          history=HistoryPolicy.KEEP_LAST, depth=1)
@@ -69,7 +70,7 @@ class Viz(Node):
 
     def plane_marker(self):
         m = Marker(frame_locked=True)  # follow the body frame between resends
-        m.header.frame_id = BODY_FRAME
+        m.header.frame_id = self.body_frame
         m.header.stamp = self.get_clock().now().to_msg()
         m.ns, m.id = 'plane', 0
         m.color.r, m.color.g, m.color.b, m.color.a = 0.9, 0.9, 0.9, 1.0
@@ -100,7 +101,7 @@ class Viz(Node):
         if self.position is None:
             return
         body = quaternion_multiply(tuple(float(v) for v in msg.q), FRD_TO_FLU)
-        self.tf.sendTransform(self.transform(NED_FRAME, BODY_FRAME, self.position, body))
+        self.tf.sendTransform(self.transform(NED_FRAME, self.body_frame, self.position, body))
 
 
 def main():
