@@ -6,7 +6,7 @@
   ros__parameters:
     use_sim_time: false
     graph_nodes: 20
-    expansion_radius: 10.0
+    expansion_radius: 20.0
     seen_radius: 20.0
     dt: 0.1
     ht: 4.0

@@ -1,10 +1,11 @@
 # SUPER at plane scale, made from cf_drone's super_pxvision.yaml by sed (see agent/experiments.md). Changed:
 # MAVROS topics without namespace; 15 m/s; horizon 60 m; 180 m map at 1 m cells; robot 2 m; depth rays to 150 m;
-# click height and map origin 60 m (indoor 1.5 m made SUPER hold the plane at 1.5 m); ESDF off.
+# click height and map origin 60 m (indoor 1.5 m made SUPER hold the plane at 1.5 m).
 fsm:
   click_goal_en: true
   click_goal_topic: "/goal_pose"
   click_height: 60.0
+  hold_pos_height: 60.0  # default 1.5 m: SUPER held the plane at 1.5 m when it had no plan
   click_yaw_en: true
   replan_rate: 15.0
   state_rate: 10.0
@@ -295,7 +296,7 @@ rog_map:
     # Needed for the clearance-aware start-point search in PlanFromRest
     # (getNearestCellNotAndAwayFrom), and mandatory if frontend_type is ever
     # set to 1/JPS.
-    enable: false  # plane: unseen space around a flying start made PlanFromRest fail
+    enable: true  # needed by the JPS frontend (cf_drone); turning it off makes fsm_node abort
     resolution: 1.0
     # The range of esdf around the odom [m].
     local_update_box: [ 100,100,50 ]

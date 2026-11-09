@@ -65,13 +65,17 @@ def generate_launch_description():
         DeclareLaunchArgument('camera_pitch', default_value='0.09', description='[rad] down, must match the model'),
         DeclareLaunchArgument('plan_file', default_value='planned_path.json'),
         DeclareLaunchArgument('rviz', default_value='false'),
+        # X display for RViz only (e.g. a virtual :99 for recording); DROAN keeps the GPU display.
+        DeclareLaunchArgument('rviz_display', default_value=os.environ.get('DISPLAY', ':0')),
         IncludeLaunchDescription(AnyLaunchDescriptionSource(
             os.path.join(get_package_share_directory('mavros'), 'launch', 'node.launch')), launch_arguments=MAVROS_ARGS.items()),
-        Node(package='cf_adapters', executable='mavros_relay.py', output='screen'),
+        # 40 s of loiter first: SUPER's PlanFromRest needs known free space around the vehicle (a hover start).
+        Node(package='cf_adapters', executable='mavros_relay.py', output='screen', parameters=[{'loiter_time': 40.0}]),
         OpaqueFunction(function=nodes),
         ExecuteProcess(cmd=['MicroXRCEAgent', 'udp4', '-p', '8888'], condition=IfCondition(LaunchConfiguration('rviz'))),
         Node(package='fw_viz', executable='viz', condition=IfCondition(LaunchConfiguration('rviz')), parameters=[{
             'body_frame': 'plane_body', 'plane_mesh': 'file://' + os.path.join(
                 REPO, 'external/PX4-Autopilot/Tools/simulation/gz/models/rc_cessna/meshes/body.dae')}]),
-        Node(package='rviz2', executable='rviz2', arguments=['-d', viz], condition=IfCondition(LaunchConfiguration('rviz'))),
+        Node(package='rviz2', executable='rviz2', arguments=['-d', viz], condition=IfCondition(LaunchConfiguration('rviz')),
+             additional_env={'DISPLAY': LaunchConfiguration('rviz_display'), '__GLX_VENDOR_LIBRARY_NAME': 'mesa'}),
     ])

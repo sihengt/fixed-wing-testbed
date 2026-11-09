@@ -29,6 +29,9 @@ class MavrosRelay(Node):
     def __init__(self):
         super().__init__('mavros_relay')
         ns = self.declare_parameter('mavros_ns', '/mavros').value
+        # [s] loiter this long after takeoff before offboard (lets a forward camera map the area first)
+        self.loiter_time = self.declare_parameter('loiter_time', 0.0).value
+        self.loiter_since = None
         self.state = None
         self.create_subscription(State, f'{ns}/state', self.on_state, 10)
         # waypoint_flyer publishes with PX4's QoS (best effort): a reliable subscription would never match.
@@ -70,6 +73,10 @@ class MavrosRelay(Node):
         elif not self.state.armed:
             self.arm.call_async(CommandBool.Request(value=True))
         elif self.state.mode == 'AUTO.LOITER':
+            now = self.get_clock().now().nanoseconds / 1e9
+            self.loiter_since = self.loiter_since or now
+            if now - self.loiter_since < self.loiter_time:
+                return
             self.get_logger().info('Takeoff done, switching to offboard (MAVROS)')
             self.set_mode.call_async(SetMode.Request(custom_mode='OFFBOARD'))
 
