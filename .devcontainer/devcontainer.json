@@ -14,8 +14,8 @@
     // Direct host X socket: the VS Code X11 forward is too slow for OpenGL (Gazebo).
     "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
   ],
-  // Needs the NVIDIA Container Toolkit on the host.
-  "runArgs": ["--gpus=all"],
+  // Needs the NVIDIA Container Toolkit on the host. ROS (Fast DDS) shares memory in /dev/shm: Docker's 64 MB default fills up.
+  "runArgs": ["--gpus=all", "--shm-size=1g"],
   "containerEnv": {
     "NVIDIA_DRIVER_CAPABILITIES": "all",
     "DISPLAY": "${localEnv:DISPLAY}"
