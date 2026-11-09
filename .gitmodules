@@ -5,3 +5,10 @@
 	path = ros2_ws/src/px4_msgs
 	url = https://github.com/PX4/px4_msgs.git
 	branch = release/1.17
+[submodule "external/cf_drone"]
+	path = external/cf_drone
+	url = git@github.com:DinoHub/cf_drone.git
+	branch = fixed-wing-experiments
+[submodule "external/Fast-FoundationStereo"]
+	path = external/Fast-FoundationStereo
+	url = https://github.com/NVlabs/Fast-FoundationStereo.git

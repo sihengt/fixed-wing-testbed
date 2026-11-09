@@ -9,3 +9,5 @@ cf_ws/build/
 cf_ws/install/
 cf_ws/log/
 sim/gazebo/generated/
+external/ffs-venv/
+external/ffs-weights/
