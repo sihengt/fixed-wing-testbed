@@ -1,6 +1,7 @@
 # SUPER at plane scale, made from cf_drone's super_pxvision.yaml by sed (see agent/experiments.md). Changed:
 # MAVROS topics without namespace; 15 m/s; horizon 60 m; 180 m map at 1 m cells; robot 2 m; depth rays to 150 m;
-# click height and map origin 60 m (indoor 1.5 m made SUPER hold the plane at 1.5 m).
+# click/hold height and map origin 60 m (indoor 1.5 m made SUPER hold the plane at 1.5 m); corridor altitude band
+# 30-120 m; no rest-start shift limit; plane camera FOV; no acceleration/drag feedforward.
 fsm:
   click_goal_en: true
   click_goal_topic: "/goal_pose"
@@ -19,13 +20,13 @@ fsm:
   # Send the trajectory acceleration to PX4 as feedforward. false = position +
   # velocity only (original). experiments/run_demo.sh overrides this per run
   # with ACC_FF=true|false.
-  mav_acc_ff_en: true
+  mav_acc_ff_en: false  # PX4 fixed-wing reads acceleration as a turn radius (sign inverted in v1.17)
   # Drag feedforward k/m [1/s], added to the x/y acceleration above (needs
   # mav_acc_ff_en). 0 = off. Measured sim airframe: k 2.04-2.16 N s/m,
   # m 1.52 kg -> 1.38 (experiments/tools/fit_drag.py). run_demo.sh overrides
   # this per run with DRAG_FF=<k/m>.
   # NEEDS TO BE ON OR THE DRONE WILL CRASH.
-  mav_drag_ff_k_over_m: 1.38
+  mav_drag_ff_k_over_m: 0.0  # multicopter drag model, not for a plane
   # Hold (any state but FOLLOW_TRAJ) at the last trajectory setpoint instead of the measured position
   # (z clamped to hold_pos_height). false = old behaviour. OPEN_ISSUES A6.
   hold_at_last_cmd: true
@@ -49,7 +50,7 @@ super_planner:
   backup_corridor_unk_ignore_r: 5.0
   # PlanFromRest: refuse (keep hovering) when the start point would move more than this [m] from the drone
   # (it searches up to 3 m for a cell >= robot_r from obstacles; E71 B1 started 0.85 m below the drone). <= 0: off.
-  rest_start_max_shift: 0.3
+  rest_start_max_shift: 0.0  # off: a flying plane is never at rest, its start always shifts > 0.3 m
   # A corridor that starts inside the inflated map gets an obstacle-free box as its first polytope (B19). true: add a
   # plane so that box cannot approach the nearest occupied cell. false = old behaviour.
   empty_poly_away_plane: true
@@ -69,7 +70,7 @@ super_planner:
   frontend_in_known_free: false
   goal_yaw_en: true
   goal_vel_en: false
-  corridor_bound_dis: 1.0
+  corridor_bound_dis: 10.0  # x10 plane scale
   # Desired clearance of the safe corridors from occupied cells [m]. CIRI keeps this where
   # the guide path allows and falls back towards robot_r in narrow places (doors).
   # <= robot_r = old behaviour. The airframe is 0.235 m half-width, 0.33 m half-diagonal.
@@ -77,10 +78,10 @@ super_planner:
   # Reserve between the seed and adaptive obstacle radius; default retains clearance v2.
   corridor_clearance_seed_margin: 0.05
   # Altitude band [m] for the drone centre in all corridors (max <= min: off). D60.
-  corridor_z_min: 1.0
-  corridor_z_max: 2.0
-  corridor_line_max_length: 1.2
-  safe_corridor_line_max_length: 5.0
+  corridor_z_min: 30.0  # plane altitude band (indoor 1-2 m blocked every corridor)
+  corridor_z_max: 120.0
+  corridor_line_max_length: 12.0  # x10 plane scale
+  safe_corridor_line_max_length: 50.0  # x10 plane scale
   iris_iter_num: 2
   obs_skip_num: 2
   replan_forward_dt: 0.3
@@ -94,7 +95,7 @@ super_planner:
   # limit is 0.7*(10-0.3) = 6.79 m, so 6.0 is inside it on all three axes.
   planning_horizon: 60.0
   sensing_horizon: -1
-  receding_dis: 4.0
+  receding_dis: 40.0  # x10 plane scale
   robot_r: 2.0
   yaw_dot_max: 3.0
   # Heading points at the trajectory this many seconds ahead [s]. Upstream
@@ -163,8 +164,8 @@ super_planner:
   # FOV model for use_fov_cut. Matches the px4vision ZED X
   # (horizontal_fov 1.8326 rad, 640x360 -> 105 deg H x 72.4 deg V).
   fov_type: 1
-  cone_half_horizontal_fov: 52.5
-  cone_half_vertical_fov: 36.2
+  cone_half_horizontal_fov: 45.0  # plane stereo pair: 90 deg x 58.7 deg (960x540)
+  cone_half_vertical_fov: 29.4
   # Yaw mode: 1 heading to velocity, 2 heading to goal
   yaw_mode: 1
   mpc_horizon: 15

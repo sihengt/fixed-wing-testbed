@@ -9,7 +9,7 @@
     expansion_radius: 20.0
     seen_radius: 20.0
     dt: 0.1
-    ht: 4.0
+    ht: 10.0  # 150 m look-ahead at 15 m/s (4 s = 60 m reacted too late: 4.4 m from a pillar)
     graph_distance_threshold: 5.0
     fixed_wing: true
     turn_radius: 40.0
@@ -19,4 +19,4 @@
     cruise_speed: 15.0
     goal_decel_distance: 50.0
     goal_radius: 30.0
-    path_match_window: 100.0
+    path_match_window: 200.0  # longer than the 150 m trajectories, or progress saturates

@@ -28,6 +28,13 @@ MAVROS_ARGS = {
 }
 
 
+def droan_overrides(context):
+    params = {'downsample_scale': int(LaunchConfiguration('downsample_scale').perform(context))}
+    if LaunchConfiguration('ht').perform(context):
+        params['ht'] = float(LaunchConfiguration('ht').perform(context))
+    return params
+
+
 def nodes(context):
     baseline = float(LaunchConfiguration('baseline').perform(context))
     pitch = float(LaunchConfiguration('camera_pitch').perform(context))
@@ -40,7 +47,9 @@ def nodes(context):
         Node(package='stereo_disparity', executable='stereo_disparity_node', output='screen', parameters=[stereo_params, {
             'topic_image_left': '/stereo/left/image', 'topic_image_right': '/stereo/right/image',
             'topic_camera_info_left': '/stereo/left/camera_info', 'topic_camera_info_right': '/stereo/right/camera_info',
-            't_rel': [baseline, 0.0, 0.0], 'depth_min': 0.0, 'depth_max': 300.0}]),
+            # depth_min 10 m: near ground on the runway gives DROAN expansion radii of thousands of pixels (radius ~
+            # disparity / baseline); at the ZED X's size that stalled the GPU and DROAN ran on stale results.
+            't_rel': [baseline, 0.0, 0.0], 'depth_min': 10.0, 'depth_max': 300.0}]),
         # Camera on the plane (base_link, FLU), pitched down, then the optical frame (z forward, x right). Names fixed by
         # stereo_disparity, which stamps its output base_link/zedx_left/optical.
         Node(package='tf2_ros', executable='static_transform_publisher', arguments=[
@@ -48,7 +57,8 @@ def nodes(context):
         Node(package='tf2_ros', executable='static_transform_publisher', arguments=[
             '--roll', str(-math.pi / 2), '--yaw', str(-math.pi / 2), '--frame-id', 'base_link/zedx_left', '--child-frame-id', 'base_link/zedx_left/optical']),
         Node(package='droan_gl', executable='droan', output='screen',
-             parameters=[os.path.join(get_package_share_directory('cf_adapters'), 'config', 'droan_plane.yaml')],
+             parameters=[os.path.join(get_package_share_directory('cf_adapters'), 'config', 'droan_plane.yaml'),
+                         droan_overrides(context)],
              remappings=[('/px4vision_custom_0/zedx_right/camera_info', '/droan/right_camera_info')]),
         Node(package='cf_adapters', executable='droan_bridge.py', output='screen', parameters=[{
             'baseline': baseline, 'goal': [float(LaunchConfiguration('goal_x').perform(context)), 0.0],
@@ -62,6 +72,8 @@ def generate_launch_description():
         DeclareLaunchArgument('baseline', default_value='1.0', description='[m] must match the plane model'),
         DeclareLaunchArgument('camera_pitch', default_value='0.09', description='[rad] down, must match the model'),
         DeclareLaunchArgument('goal_x', default_value='1200.0', description='[m] ENU east of the takeoff point'),
+        DeclareLaunchArgument('downsample_scale', default_value='2', description="DROAN's image downsampling (its default 2)"),
+        DeclareLaunchArgument('ht', default_value='', description='[s] trajectory horizon, overrides droan_plane.yaml'),
         DeclareLaunchArgument('plan_file', default_value='planned_path.json'),
         DeclareLaunchArgument('rviz', default_value='false'),
         # X display for RViz only (e.g. a virtual :99 for recording); DROAN keeps the GPU display.
