@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and start PX4 SITL with a Gazebo fixed-wing. Opens the PX4 shell (pxh>).
 # Usage: run.sh [world] [model]   (defaults: default, advanced_plane). Set HEADLESS=1 to run without the Gazebo window.
-# Worlds: PX4's (default, baylands, ...) or one made by make_<world>_world.py here (pillars).
+# Worlds: PX4's (default, baylands, ...) or one made by make_<world>_world.py here (pillars, forest).
 # Models: advanced_plane (PX4's), advanced_plane_stereo (with a stereo pair, see make_stereo_model.py;
 # STEREO_ARGS are passed to it, e.g. STEREO_ARGS="--baseline 1.0 --width 1280 --height 720 --hfov 1.5708").
 set -e
@@ -16,7 +16,7 @@ case $PX4_GZ_WORLD in
     POSE="60.5,7.1,-0.1,0,0,3.14159"
     export PX4_PARAM_MIS_TAKEOFF_ALT=50
     ;;
-  pillars)
+  pillars|forest)
     export PX4_PARAM_MIS_TAKEOFF_ALT=50
     ;;
 esac

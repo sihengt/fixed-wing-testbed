@@ -18,7 +18,7 @@ from launch_ros.actions import Node
 
 REPO = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', '..', '..'))
 sys.path.insert(0, os.path.join(REPO, 'sim/gazebo'))
-from make_pillars_world import PILLAR_RADIUS, PILLARS  # noqa: E402
+from make_pillars_world import LAYOUTS, PILLAR_RADIUS  # noqa: E402
 
 MAVROS_ARGS = {
     'fcu_url': 'udp://:14540@127.0.0.1:14580', 'gcs_url': '', 'tgt_system': '1', 'tgt_component': '1',
@@ -35,7 +35,7 @@ def nodes(context):
                for eye in ('left', 'right') for topic, kind in (('image', 'Image'), ('camera_info', 'CameraInfo'))]
     stereo_params = os.path.join(get_package_share_directory('stereo_disparity'), 'config', 'params.yaml')
     super_config = os.path.join(get_package_share_directory('cf_adapters'), 'config', 'super_plane.yaml')
-    obstacles = [v for x, y in PILLARS for v in (x, y, PILLAR_RADIUS)]
+    obstacles = [v for x, y in LAYOUTS[LaunchConfiguration('world').perform(context)] for v in (x, y, PILLAR_RADIUS)]
     return [
         Node(package='ros_gz_bridge', executable='parameter_bridge', arguments=bridged),
         Node(package='stereo_disparity', executable='stereo_disparity_node', output='screen', parameters=[stereo_params, {
@@ -61,6 +61,7 @@ def nodes(context):
 def generate_launch_description():
     viz = os.path.join(get_package_share_directory('fw_viz'), 'rviz', 'droan.rviz')
     return LaunchDescription([
+        DeclareLaunchArgument('world', default_value='pillars', description='pillars or forest: pillars shown and scored'),
         DeclareLaunchArgument('baseline', default_value='1.0', description='[m] must match the plane model'),
         DeclareLaunchArgument('camera_pitch', default_value='0.09', description='[rad] down, must match the model'),
         DeclareLaunchArgument('plan_file', default_value='planned_path.json'),
